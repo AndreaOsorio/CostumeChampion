@@ -1,0 +1,506 @@
+﻿using UnityEngine;
+using System.Collections;
+using UnityEngine.SceneManagement;
+using UnityEngine.UI;
+
+//Required componenets for the GameObject which are needed and cannot be deleted
+[RequireComponent (typeof(Rigidbody2D))]
+[RequireComponent (typeof(BoxCollider2D))]
+
+
+//SCRIPT WRITTEN BY: ANDREA AND KEVIN
+
+
+
+//Benny is child from BaseUnit which have methods that are used also for enemies, like Move()
+public class Benny : BaseUnit
+{
+
+	//Declaration of variables uxsed in Benny class
+
+	//Touch Input variables
+
+	Vector2 posInitial;
+	Vector2 posFinal;
+
+	Touch touch;
+
+	public float minSwipeDistanceX = 500;
+	public float minSwipeDistanceY = 500;
+
+	float swipeDistVertical;
+	float swipeDistHorizontal;
+
+	//public variables can be changed in the Inspector
+	public float jumpHeight;
+	private bool wallSliding = false;
+	public float slidingSpeed;
+
+	public float dashingSpeed;
+	Vector2 defaultVelocity;
+	public float direction = 1;
+
+	private Vector2 vel;
+	private Vector3 rot;
+	private Vector2 offsetDash;
+	private Vector2 offsetSizeDefault;
+	private Vector2 offsetDefault;
+	private bool isSwitchTriggered = false;
+
+	public bool isDashing = false;
+	public bool isHiding = false;
+<<<<<<< HEAD
+	bool canJump;
+
+=======
+	bool playedSound = true;
+>>>>>>> d3c30b0fece6bd29b7e8d3dbce236aab704ab78b
+	bool extendedLedge = false;
+
+	//time the dashing is going to last
+	public float dashSecondsTime;
+
+	public BoxCollider2D bx;
+	//receives the childs from Player object in the inspector
+	Transform[] badBoy = new Transform[3];
+
+	//ability enable at the moment
+	public Abilities currentAbility;
+
+	//This float is used to add some height to lmour Raycast, to avoid collision with the terrain
+	private float sideCheckHeightFix = 0.1f;
+
+
+	float dashingTime;
+
+	//audio clip array
+	public AudioClip[] audioClip;
+
+	void Start ()
+	{
+<<<<<<< HEAD
+		
+		defaultVelocity = rb.velocity;
+
+		canJump = true;
+=======
+		int startSound = Random.Range (1, 4);
+		if (startSound == 1)
+			PlaySound (0);
+		else if (startSound == 2)
+			PlaySound (1);
+		else {
+			PlaySound (2);
+		}
+		
+>>>>>>> d3c30b0fece6bd29b7e8d3dbce236aab704ab78b
+		//box collider defaults variables are stored in variables for later be restored
+		bx = GetComponent<BoxCollider2D> ();
+		offsetDefault = bx.offset;
+		offsetSizeDefault = bx.size;
+		//receives the childs into the badboy array
+		for (int i = 0; i < 3; i++) {
+			badBoy [i] = this.gameObject.transform.GetChild (i);
+		}
+
+		//only for Android: The game will automatically start on Landscape and cannot be rotated
+		Screen.orientation = ScreenOrientation.LandscapeLeft;
+		Screen.autorotateToPortrait = false;
+		Screen.autorotateToPortraitUpsideDown = false;
+		Screen.autorotateToLandscapeRight = true;
+
+		//benny starts with no abilities enabled
+		//currentAbility = Abilities.None;
+
+	}
+
+
+	void Update ()
+	{
+		//print (currentAbility.ToString ().ToUpper ());
+
+		dashingTime += Time.deltaTime;
+
+		if (isDashing == false || isHiding == false) {
+			//Moves forward every frame
+			Move (direction);
+		}
+
+
+		//if it detects a touch on the screen, gets the type of touch and the initial position of the finger on the screen
+		#if !UNITY_EDITOR
+		if (Input.touchCount > 0) {
+			touch = Input.GetTouch (0);
+			if (touch.phase == TouchPhase.Began) {
+				posInitial = touch.position;
+			}
+		}
+		#endif
+		if (wallSliding == false) {
+			anim.SetBool ("WallSlide", false);
+		}	
+			
+		//bind animator parameter "YVelocity" to the actual rigibody vertical velocity;
+		anim.SetFloat ("YVelocity", rb.velocity.y);
+
+		TerrainState sideHit = CheckSideHit ();
+		//if benny touches a wall
+		if (sideHit == TerrainState.Wall) {
+
+			//wall sliding ia set to true, velocity downwards decreases and the animation for wall sliding begins
+			wallSliding = true; 
+			vel = rb.velocity;
+			vel.x = 0;
+			vel.y = -slidingSpeed;
+			rb.velocity = vel;
+
+			if (wallSliding == true) {
+				anim.SetBool ("WallSlide", true);
+			} 
+
+			//if while wall sliding the player presses the jump input, it jumps and switches to jump animation
+#if UNITY_EDITOR
+			if (Input.GetKeyDown (KeyCode.Space)) {
+#else
+			if (Input.touchCount > 0 && touch.phase == TouchPhase.Ended) {
+				posFinal = touch.position;
+			swipeDistVertical = (new Vector2 (0, posFinal.y) - new Vector2 (0, posInitial.y)).magnitude;
+			swipeDistHorizontal = (new Vector2 (posFinal.x, 0) - new Vector2 (posInitial.x, 0)).magnitude;
+
+			if (swipeDistVertical < minSwipeDistanceY || swipeDistHorizontal < minSwipeDistanceX) 
+#endif
+				{
+					if (canJump == true) {
+						//Jump in the opposite direction that you're moving
+						anim.SetTrigger ("Jump");
+						anim.SetBool ("enableJump", canJump);
+						Jump (wallSliding, -direction);		
+					} else {
+						anim.SetBool ("enableJump", false);
+					}
+				}
+			}
+
+			//flips the direction of Benny when touching a wall
+			Flip (-direction);
+
+			//===============================================================================================
+
+			//if touching the floor and a wall at the same time, and ihe vertical velocity is 0 or less, the jump animation stops, the direction changes and the wall stuck animation starts
+			if (OnTerrain (raycastOffset) == TerrainState.Floor || OnTerrain (-raycastOffset) == TerrainState.Floor) {
+				wallSliding = false;
+				anim.SetBool ("IsGrounded", true);
+				anim.SetBool ("WallSlide", false);
+				Flip (direction);
+				anim.SetBool ("WallStuck", true);
+			} else {
+				anim.SetBool ("WallStuck", false);
+			}
+
+			//==============================================================================================
+
+
+
+		} else {
+		
+			//if its not touching a wall
+
+			anim.SetBool ("WallStuck", false);
+			//================================================================
+			wallSliding = false;
+			//=============================================================
+
+			//if touching the floor, falling animation ends and if jump input is pressed, benny jumps and jumping animation starts
+			if (OnTerrain (raycastOffset) == TerrainState.Floor || OnTerrain (-raycastOffset) == TerrainState.Floor) {
+				anim.SetBool ("IsGrounded", true);
+#if UNITY_EDITOR
+				if (Input.GetKeyDown (KeyCode.Space)) {
+#else
+				if (Input.touchCount > 0 && touch.phase == TouchPhase.Ended) {
+					posFinal = touch.position;
+					swipeDistVertical = (new Vector2 (0, posFinal.y) - new Vector2 (0, posInitial.y)).magnitude;
+					swipeDistHorizontal = (new Vector2 (posFinal.x, 0) - new Vector2 (posInitial.x, 0)).magnitude;
+
+					if (swipeDistVertical < minSwipeDistanceY || swipeDistHorizontal < minSwipeDistanceX)
+#endif
+					{
+						if (canJump == true) {
+							anim.SetTrigger ("Jump");
+							anim.SetBool ("enableJump", canJump);
+							Jump (wallSliding, raycastOffset);
+						} else {
+							anim.SetBool ("enableJump", false);
+						}
+
+					}
+
+				} 
+			} 
+			//if not touching floor, and it is falling, and it is touching a wall, it will force it to fall while playind the falling animation
+			else {
+				anim.SetBool ("IsGrounded", false);
+			}
+			//flips the scale to the other direction
+			Flip (direction);
+
+		}
+
+		//if the input for dash is pressed and it is on the floor, it can dash and increase the horizontal speed 
+#if UNITY_EDITOR
+		if (Input.GetKeyDown (KeyCode.D) && currentAbility == Abilities.Dash)
+#else
+		if (Input.touchCount > 0 && touch.phase == TouchPhase.Ended && currentAbility == Abilities.Dash && !isDashing)
+		swipeDistVertical = (new Vector2 (0, posFinal.y) - new Vector2 (0, posInitial.y)).magnitude;
+		swipeDistHorizontal = (new Vector2 (posFinal.x, 0) - new Vector2 (posInitial.x, 0)).magnitude;
+
+		if (swipeDistVertical > minSwipeDistanceY || swipeDistHorizontal > minSwipeDistanceX)
+#endif
+		{
+			{
+				if (OnTerrain (raycastOffset) == TerrainState.Floor || OnTerrain (-raycastOffset) == TerrainState.Floor) {
+					//calls dash, dashing time starts set to 0
+					Dash ();
+					isDashing = true;
+					dashingTime = 0f;
+					anim.SetBool ("GroundSlide", true);
+				}
+			}
+		}
+
+#if UNITY_EDITOR
+		if (Input.GetKeyDown (KeyCode.H) && currentAbility == Abilities.Hide) {
+#else
+		if (Input.touchCount > 0 && touch.phase == TouchPhase.Ended && currentAbility == Abilities.Hide) {
+			swipeDistVertical = (new Vector2 (0, posFinal.y) - new Vector2 (0, posInitial.y)).magnitude;
+			swipeDistHorizontal = (new Vector2 (posFinal.x, 0) - new Vector2 (posInitial.x, 0)).magnitude;
+
+			if (swipeDistVertical > minSwipeDistanceY || swipeDistHorizontal > minSwipeDistanceX)
+#endif
+			{
+				if (OnTerrain (raycastOffset) == TerrainState.Floor || OnTerrain (-raycastOffset) == TerrainState.Floor) {
+					isHiding = !isHiding;
+					if (isHiding) {
+						NinjaHide ();
+						anim.SetBool ("Hide", true);	
+					} else {
+						anim.SetBool ("Hide", false);
+						StartCoroutine ("WaitForJump");
+					}
+				}
+			}
+		} 
+
+		//when the current dashing time reaches the dashing time limit benny stops dashing, velocity returns to normal and the box collider default values are restored
+		if (dashingTime > dashSecondsTime && extendedLedge == false) {
+			anim.SetBool ("GroundSlide", false);
+			isDashing = false;
+			dashingTime = 0f;
+			bx.size = offsetSizeDefault;
+			bx.offset = offsetDefault;
+			vel = rb.velocity;
+			vel.x = direction * movementSpeed;
+			rb.velocity = vel;
+		}
+
+	}
+
+	//============================================================================================================================================================================
+	//========== END OF VOID UPDATE() ============================================================================================================================================
+	//============================================================================================================================================================================
+
+	//check what the player is touching from the side
+	TerrainState CheckSideHit ()
+	{
+		//origin for raycast is at pivot
+		Vector3 origin = transform.position;
+		origin.y += sideCheckHeightFix;
+
+		//Shoots raycast to the direction Benny is facing
+		RaycastHit2D hitInfo = Physics2D.Raycast (origin, new Vector2 (direction, 0), 1.7f);
+
+		//returns what benny is touching
+		if (hitInfo.collider == null) {
+			return TerrainState.None;
+		} else {
+			if (hitInfo.collider.gameObject.tag.Equals ("Floor")) {
+				return TerrainState.Floor;
+			} else if (hitInfo.collider.gameObject.tag.Equals ("Wall")) {
+				return TerrainState.Wall;
+			} else {
+				return TerrainState.Other;
+			}
+		}
+	}
+
+	//Method to jump, based on the direction and if it is wallSliding
+	void Jump (bool wallSliding, float dir)
+	{
+		if (wallSliding == true) {
+			direction = dir;
+		}
+		vel = rb.velocity;
+		vel.y = jumpHeight;
+		rb.velocity = vel;
+		PlaySound (7);
+	}
+
+	//Method to Dash ability
+	void Dash ()
+	{
+		vel = rb.velocity;
+		vel.x = direction * dashingSpeed;
+		rb.velocity = vel;
+
+		float offsetX = bx.size.x;
+		offsetDash = bx.size;
+		offsetDash.y = offsetX;
+		bx.size = offsetDash;
+
+		Vector2 offsetPos = bx.offset;
+		offsetPos.y = 1.3f;
+		bx.offset = offsetPos;	
+	}
+
+	//Method to Hide ability
+	void NinjaHide ()
+	{
+		//3 is to freeze all position and rotation
+		ChangeConstraints (3);
+<<<<<<< HEAD
+		canJump = false;
+		rb.velocity = Vector2.zero;
+=======
+		PlaySound (5);
+>>>>>>> d3c30b0fece6bd29b7e8d3dbce236aab704ab78b
+	}
+
+	//changes the constraints of the rigidbody2D
+	void ChangeConstraints (int option)
+	{
+		//each number will enter the switch in their respective case and freeze or unfreeze constraints
+		switch (option) {
+		//unfreezes everything
+		case 0:
+			rb.constraints = RigidbodyConstraints2D.None;
+			break;
+		//freezes position in Y
+		case 1:
+			rb.constraints = RigidbodyConstraints2D.FreezePositionY;
+			break;
+		//freezes rotation
+		case 2:
+			rb.constraints = RigidbodyConstraints2D.FreezeRotation;
+			break;
+		//freezes everything
+		case 3:
+			rb.constraints = RigidbodyConstraints2D.FreezeAll;
+			break;
+		}
+	}
+
+	//starts when it collides with another collider
+	void OnTriggerEnter2D (Collider2D coll)
+	{
+		//if touches a CSM or Friend it destroys it, if it is a CSM the level is loaded again. Later this will be for level complete screen
+		if (coll.gameObject.GetComponent<Friend> () != null || coll.gameObject.tag.Equals ("CSM")) {
+			Destroy (coll.gameObject);
+			if (coll.gameObject.tag.Equals ("CSM")) {
+				SceneManager.LoadScene (0);
+			}
+			//sets the ability of the costume to equip to true and changes costume and disables the others
+		} else if (coll.gameObject.GetComponent<Costume> () != null) {
+			if (coll.gameObject.tag.Equals ("Ninja")) {
+				currentAbility = Abilities.Hide;
+				badBoy [0].gameObject.SetActive (false);
+				badBoy [2].gameObject.SetActive (false);
+				badBoy [1].gameObject.SetActive (true);
+				PlaySound (10);
+
+			} else if (coll.gameObject.tag.Equals ("Warrior")) {
+				currentAbility = Abilities.Dash;
+				badBoy [0].gameObject.SetActive (false);
+				badBoy [2].gameObject.SetActive (true);
+				badBoy [1].gameObject.SetActive (false);
+				PlaySound (11);
+
+			} else if (coll.gameObject.tag.Equals ("Benny")) {
+				currentAbility = Abilities.None;
+				badBoy [0].gameObject.SetActive (true);
+				badBoy [2].gameObject.SetActive (false);
+				badBoy [1].gameObject.SetActive (false);
+				PlaySound (9);
+			}
+			//when player collides with the switch, the switch animation is played, the door opens and the bool variable which will be used later is set to true
+		} else if (coll.gameObject.tag.Equals ("Switch")) {
+			
+			if (playedSound = true) {
+				PlaySound (3);
+				playedSound = false;
+			}
+			Switch.inst.SwitchTrigger ();
+			isSwitchTriggered = true;
+			Door.inst.OpenDoor ();
+		} else if (coll.gameObject.tag.Equals ("DashArea")) {
+			extendedLedge = true;
+		} else if (coll.gameObject.tag.Equals ("Fan")) {
+			Destroy (this.gameObject);
+			SceneManager.LoadScene (SceneManager.GetActiveScene ().name);
+		}
+	}
+
+	public void Restart ()
+	{
+		Destroy (this.gameObject);
+		SceneManager.LoadScene (SceneManager.GetActiveScene ().name);
+	}
+
+	void OnTriggerExit2D (Collider2D coll)
+	{
+
+		if (coll.gameObject.tag.Equals ("DashArea")) {
+			extendedLedge = false;
+		}
+
+	}
+
+	//if the player collides with a closed door and if the switch has not been opened the player will just turn around
+	void OnCollisionEnter2D (Collision2D coll)
+	{
+		if (coll.gameObject.tag.Equals ("Door")) {
+			if (isSwitchTriggered != true) {
+				Flip (-direction);
+				direction *= -1;
+			} 
+		}
+	}
+
+	void PlaySound (int clip)
+	{
+		//play audio source based on array.
+		AudioSource audio = GetComponent<AudioSource> ();
+		audio.clip = audioClip [clip];
+		audio.Play ();
+	}
+
+	IEnumerator WaitForJump ()
+	{
+		rb.constraints = RigidbodyConstraints2D.FreezePositionY | RigidbodyConstraints2D.FreezeRotation;
+		rb.velocity = defaultVelocity;
+		canJump = false;
+		anim.SetBool ("enableJump", false);
+		yield return new WaitForSeconds (0.5f);
+		canJump = true;
+		//restore constraints to default
+		ChangeConstraints (2);
+	}
+
+}
+
+public enum Abilities
+{
+	Dash,
+	Hide,
+	None
+}
+
+
